@@ -48,16 +48,17 @@ Outputs:
 
 ## Usage
 
-1. Launch Minecraft (1.8.9 client).
-2. Run the injector:
-   ```
-   build\camera-no-clip-injector.exe build\camera-no-clip.dll
-   ```
-   The injector finds the first `javaw.exe` / `java.exe` and loads the DLL
-   into it via `CreateRemoteThread(LoadLibraryA)`. A small console window
-   pops up inside Minecraft's process with the mod's log output.
+1. Launch Minecraft (1.8.9 client) and wait until the main menu is showing.
+2. Run `build\camera-no-clip-injector.exe`. A small ImGui window lists every
+   running `javaw.exe` / `java.exe` by window title and PID; click one to
+   inject. The DLL is embedded inside the injector as an RCDATA resource,
+   so the .exe is the only file you need to ship. (If a sibling
+   `camera-no-clip.dll` is found next to the .exe, that one is preferred
+   over the embedded copy — useful while iterating on the DLL build.)
+3. A small console window pops up inside Minecraft's process with the
+   mod's log output.
 
-3. In-game hotkeys:
+4. In-game hotkeys:
    - **INSERT** – toggle camera no-clip on / off
    - **END**    – cleanly unload (uninstall hook, free the DLL)
 
@@ -71,7 +72,13 @@ camera-no-clip/
 │       ├── main.cpp             SDK type tags, mapping, hook detour, hotkey loop
 │       └── dllmain.cpp          DLL entry; spawns worker thread, attaches console
 └── injector/
-    └── src/main.cpp             Find javaw.exe, LoadLibraryA via CreateRemoteThread
+    ├── ext/imgui/               imgui + DX11/Win32 backends (vendored)
+    ├── ext/idr.rc               embeds camera-no-clip.dll as RCDATA resource 256
+    └── src/main/
+        ├── main.cpp             Win32 window, message loop
+        ├── dx11.cpp/.hpp        D3D11 swap chain init / cleanup
+        ├── injector.cpp/.hpp    Enumerate javaw windows, LoadLibrary via CreateRemoteThread
+        └── ui.cpp/.hpp          ImGui target-picker UI
 ```
 
 ## License
