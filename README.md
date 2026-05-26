@@ -21,8 +21,14 @@ The detour inspects the calling frame via `vmhook::return_value::caller()`. If
 the caller is `EntityRenderer.orientCamera`, it writes `null` into the return
 slot and lets the JVM continue. Anything else falls through unchanged.
 
-MCP and 1.8 OBF class names are both supported (auto-detected at startup);
-SRG would need adding the SRG names to `mapping::names` in `main.cpp`.
+Three name schemes are supported (auto-detected at startup):
+
+- **MCP** — vanilla 1.8.9, most Hypixel clients, Lunar, Badlion.
+- **SRG** — Searge names used by Forge at runtime (`func_*` / `field_*`).
+- **OBF** — 1.8.9 obfuscated jars (e.g. `adm`, `bfk`).
+
+MCP and SRG share class names, so detection probes `World.playerEntities`
+(MCP) vs `World.field_73010_i` (SRG) to tell them apart.
 
 vmhook v0.5.0 ships an auto-repair watchdog, so the hook keeps firing even
 after HotSpot's tiered compiler eventually re-JITs `rayTraceBlocks`.

@@ -58,9 +58,19 @@ namespace sdk
 
 namespace mapping
 {
-    // The four name sets we need to install the hook and identify the caller.
-    // We support both MCP (deobfuscated) and 1.8 OBF builds; SRG is omitted
-    // because Hypixel-flavoured clients ship either MCP or OBF in practice.
+    // The name sets we need to install the hook, identify the caller frame,
+    // and disambiguate MCP from SRG at startup.
+    //
+    // Three mappings are supported:
+    //   - MCP : deobfuscated names (vanilla 1.8.9, most Hypixel clients,
+    //           Lunar, Badlion).
+    //   - SRG : Searge names used by Forge at runtime - classes keep the MCP
+    //           form but every method / field is renamed to func_*****_x /
+    //           field_*****_x.  MCP and SRG cannot be told apart by class
+    //           lookup alone, so detect() probes World.playerEntities (MCP)
+    //           vs World.field_73010_i (SRG) after registering the class.
+    //   - OBF : 1.8.9 obfuscated names (rare in modern launchers, but still
+    //           present on bare vanilla jars).
     struct names
     {
         const char* world_class;
@@ -74,6 +84,10 @@ namespace mapping
 
         const char* ray_trace_blocks;
         const char* orient_camera;
+
+        // Field on World used only by detect() to tell MCP from SRG (both
+        // share the same World class name).  Not used by the hook itself.
+        const char* probe_field;
     };
 
     inline constexpr names mcp{
@@ -86,6 +100,20 @@ namespace mapping
         "Lnet/minecraft/util/MovingObjectPosition;",
         "rayTraceBlocks",
         "orientCamera",
+        "playerEntities",
+    };
+
+    inline constexpr names srg{
+        "net/minecraft/world/World",
+        "net/minecraft/util/Vec3",
+        "net/minecraft/util/MovingObjectPosition",
+        "net/minecraft/client/renderer/EntityRenderer",
+        "Lnet/minecraft/world/World;",
+        "Lnet/minecraft/util/Vec3;",
+        "Lnet/minecraft/util/MovingObjectPosition;",
+        "func_147447_a",
+        "func_78467_g",
+        "field_73010_i",
     };
 
     inline constexpr names obf{
@@ -98,6 +126,7 @@ namespace mapping
         "Lauh;",
         "a",
         "f",
+        "j",
     };
 
     inline const names* current{ nullptr };
@@ -105,18 +134,45 @@ namespace mapping
     static auto detect() noexcept
         -> bool
     {
-        if (vmhook::find_class(mcp.world_class) != nullptr)
+        // Step 1: MCP and SRG share class names.  If the MCP-named World
+        // class is present, we register it once and then probe one field on
+        // it - playerEntities (MCP) vs field_73010_i (SRG) - to know which
+        // mapping is in effect.
+        //
+        // The probe goes through vmhook::find_field directly (not the
+        // higher-level sdk::world::get_field), because the latter is
+        // static-only and World.playerEntities is an instance field.
+        if (vmhook::hotspot::klass* const world_klass{ vmhook::find_class(mcp.world_class) })
         {
+            vmhook::register_class<sdk::world>(mcp.world_class);
+
+            if (vmhook::find_field(world_klass, mcp.probe_field).has_value())
+            {
+                current = &mcp;
+                std::println("[INFO] camera-no-clip: MCP mapping detected");
+                return true;
+            }
+            if (vmhook::find_field(world_klass, srg.probe_field).has_value())
+            {
+                current = &srg;
+                std::println("[INFO] camera-no-clip: SRG (Forge) mapping detected");
+                return true;
+            }
+            std::println("[WARN] camera-no-clip: World class found but neither "
+                         "MCP nor SRG probe field present; falling back to MCP");
             current = &mcp;
-            std::println("[INFO] camera-no-clip: MCP mapping detected");
             return true;
         }
+
+        // Step 2: OBF 1.8 has differently-named classes.
         if (vmhook::find_class(obf.world_class) != nullptr)
         {
+            vmhook::register_class<sdk::world>(obf.world_class);
             current = &obf;
             std::println("[INFO] camera-no-clip: OBF mapping detected");
             return true;
         }
+
         std::println("[ERROR] camera-no-clip: no recognised World class found - injected into wrong process?");
         return false;
     }
@@ -183,7 +239,10 @@ namespace camera_no_clip
             return;
         }
 
-        vmhook::register_class<sdk::world>(mapping::current->world_class);
+        // sdk::world is already registered inside detect() (it had to be in
+        // order to probe a field for MCP / SRG disambiguation).  The other
+        // three types are pure caller-name / return-value tags and have not
+        // been registered yet.
         vmhook::register_class<sdk::vec3>(mapping::current->vec3_class);
         vmhook::register_class<sdk::moving_object_position>(mapping::current->mop_class);
         vmhook::register_class<sdk::entity_renderer>(mapping::current->entity_renderer_class);
