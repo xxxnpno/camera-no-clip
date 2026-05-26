@@ -1,0 +1,9 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="injector/injector.vcxproj" Id="b2c3d4e5-2222-4333-8444-555666777888">
+    <BuildDependency Project="camera-no-clip/camera-no-clip.vcxproj" />
+  </Project>
+  <Project Path="camera-no-clip/camera-no-clip.vcxproj" Id="a1b2c3d4-1111-4222-8333-444555666777" />
+</Solution>
