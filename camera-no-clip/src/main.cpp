@@ -266,23 +266,23 @@ namespace camera_no_clip
             return;
         }
 
-        std::println("[INFO] camera-no-clip: hook installed - INSERT toggles, END unloads");
+        std::println("[INFO] camera-no-clip: hook installed - DELETE toggles, END unloads");
 
-        bool prev_insert{ false };
+        bool prev_delete{ false };
         bool prev_end{ false };
 
         while (g_running.load(std::memory_order_relaxed))
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{ 50 });
 
-            const bool insert_down{ (GetAsyncKeyState(VK_INSERT) & 0x8000) != 0 };
-            if (insert_down && !prev_insert)
+            const bool delete_down{ (GetAsyncKeyState(VK_DELETE) & 0x8000) != 0 };
+            if (delete_down && !prev_delete)
             {
                 const bool new_state{ !g_enabled.load(std::memory_order_relaxed) };
                 g_enabled.store(new_state, std::memory_order_relaxed);
                 std::println("[INFO] camera-no-clip: {}", new_state ? "ENABLED" : "DISABLED");
             }
-            prev_insert = insert_down;
+            prev_delete = delete_down;
 
             const bool end_down{ (GetAsyncKeyState(VK_END) & 0x8000) != 0 };
             if (end_down && !prev_end)

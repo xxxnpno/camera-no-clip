@@ -59,7 +59,7 @@ Outputs:
    mod's log output.
 
 4. In-game hotkeys:
-   - **INSERT** – toggle camera no-clip on / off
+   - **DELETE** – toggle camera no-clip on / off
    - **END**    – cleanly unload (uninstall hook, free the DLL)
 
 ## Layout
