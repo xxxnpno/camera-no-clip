@@ -224,6 +224,22 @@ namespace
 
         return_value.set<sdk::moving_object_position>(nullptr);
     }
+
+    // Intentionally empty - see the install site in run().  This detour exists
+    // purely for its side effect: hooking a method forces vmhook to run it in
+    // the interpreter, and return_value::caller() can only walk the saved-rbp
+    // chain when the *calling* frame is interpreted too.  Left un-hooked,
+    // EntityRenderer.orientCamera stays JIT-compiled, so the caller() read
+    // inside on_ray_trace_blocks lands on a compiled frame, comes back empty
+    // (caller.valid() == false), and the detour bails before nulling the camera
+    // ray - the no-clip then silently never fires.  Same non-noexcept
+    // requirement as on_ray_trace_blocks (vmhook's free-function-pointer traits).
+    auto on_orient_camera(vmhook::return_value& /*return_value*/,
+                          const std::unique_ptr<sdk::entity_renderer>& /*renderer*/,
+                          float /*partial_ticks*/)
+        -> void
+    {
+    }
 }
 
 
@@ -264,6 +280,18 @@ namespace camera_no_clip
                          mapping::current->world_class,
                          mapping::current->ray_trace_blocks);
             return;
+        }
+
+        // Carries no logic of its own (see on_orient_camera) - this hook only
+        // forces EntityRenderer.orientCamera into the interpreter so that the
+        // caller() check inside on_ray_trace_blocks can recognise it as the
+        // caller.  Without it the no-clip never fires even though the
+        // rayTraceBlocks hook installed fine.
+        if (!vmhook::hook<sdk::entity_renderer>(mapping::current->orient_camera, &on_orient_camera))
+        {
+            std::println("[WARN] camera-no-clip: failed to hook {}.{} - no-clip may stay inactive",
+                         mapping::current->entity_renderer_class,
+                         mapping::current->orient_camera);
         }
 
         std::println("[INFO] camera-no-clip: hook installed - DELETE toggles, END unloads");
