@@ -287,7 +287,16 @@ namespace camera_no_clip
         // caller() check inside on_ray_trace_blocks can recognise it as the
         // caller.  Without it the no-clip never fires even though the
         // rayTraceBlocks hook installed fine.
-        if (!vmhook::hook<sdk::entity_renderer>(mapping::current->orient_camera, &on_orient_camera))
+        //
+        // The (F)V signature is passed explicitly: in obfuscated (vanilla)
+        // mappings orientCamera is named "f", and the obfuscator reuses that
+        // name for several methods on EntityRenderer.  A name-only hook matches
+        // the first "f" in the methods array (the wrong method), so the deopt
+        // never reaches the real orientCamera and the no-clip stays dead on
+        // vanilla while still working on MCP/SRG.  The descriptor is (F)V across
+        // all three mappings (the lone parameter is a primitive float), so it
+        // disambiguates everywhere without needing a per-mapping signature.
+        if (!vmhook::hook<sdk::entity_renderer>(mapping::current->orient_camera, "(F)V", &on_orient_camera))
         {
             std::println("[WARN] camera-no-clip: failed to hook {}.{} - no-clip may stay inactive",
                          mapping::current->entity_renderer_class,
